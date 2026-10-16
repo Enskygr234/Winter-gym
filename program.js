@@ -88,8 +88,12 @@ const PLANLAR = {
   5: ["itis", "cekis", "bacak", "ust", "alt"],
   6: ["itis", "cekis", "bacak", "itis", "cekis", "bacak"],
 };
-// Haftanın hangi günleri (0 Pazartesi)
+// Haftanın hangi günleri (0 Pazartesi). Kullanıcı kendi günlerini seçebilir; seçmezse bunlar kullanılır.
 const HAFTA_DUZENI = { 2: [0, 3], 3: [0, 2, 4], 4: [0, 1, 3, 4], 5: [0, 1, 2, 4, 5], 6: [0, 1, 2, 3, 4, 5] };
+function antrenmanGunleri(profil) {
+  const g = Array.isArray(profil.gunler) ? [...new Set(profil.gunler)].filter(x => x >= 0 && x <= 6).sort((a, b) => a - b) : null;
+  return g && g.length === profil.gun ? g : HAFTA_DUZENI[profil.gun].slice();
+}
 
 const HEDEFLER = {
   kas:   { ad: "Kas yapmak", tekrar: [8, 12], set: 3, dinlenme: 90, carpan: 1 },
@@ -139,6 +143,7 @@ function programUret(profil) {
   const plan = PLANLAR[profil.gun];
   const hedef = HEDEFLER[profil.hedef];
   const genc = profil.yas < 16;
+  const haftaGunleri = antrenmanGunleri(profil);
   const gunler = plan.map((anahtar, gi) => {
     const sablon = GUNLER[anahtar];
     const kullanilan = new Set();
@@ -154,7 +159,7 @@ function programUret(profil) {
       if (genc && h.tur !== "vucut") tekrar = [10, 15];
       hareketler.push({ id, set, tekrar, kg: baslangicAgirlik(id, profil), dinlenme: h.ana ? hedef.dinlenme : Math.max(45, Math.round(hedef.dinlenme * .7)) });
     }
-    return { ad: sablon.ad, harf: String.fromCharCode(65 + gi), haftaGunu: HAFTA_DUZENI[profil.gun][gi], hareketler };
+    return { ad: sablon.ad, harf: String.fromCharCode(65 + gi), haftaGunu: haftaGunleri[gi], hareketler };
   });
   return { olusturma: Date.now(), gunler };
 }
@@ -208,6 +213,9 @@ function isinma(hareket) {
   return s;
 }
 
+// Tahmini tek tekrar maksimumu (Epley); 12 tekrardan fazlası için güvenilmez olduğundan sınırlanır
+function tahminiMax(kg, tekrar) { if (!kg || !tekrar) return 0; return tekrar === 1 ? kg : kg * (1 + Math.min(tekrar, 12) / 30); }
+
 function fmtKg(kg) { return Number.isInteger(kg) ? String(kg) : kg.toFixed(kg * 4 % 1 ? 2 : 1).replace(".", ","); }
 
 // Alternatif hareketler (değiştir düğmesi için): aynı kas grubu, aynı ekipmanla yapılabilen
@@ -219,4 +227,4 @@ function alternatifler(id, ekip) {
   return Object.entries(HAREKETLER).filter(([k, x]) => k !== id && x.ekip.includes(ekip) && GRUP[x.kas] === g).map(([k]) => k);
 }
 
-if (typeof module !== "undefined") module.exports = { HAREKETLER, SLOTLAR, GUNLER, PLANLAR, HEDEFLER, DENEYIM, programUret, ilerlet, plakaHesapla, isinma, yuvarla, bki, fmtKg, alternatifler, baslangicAgirlik };
+if (typeof module !== "undefined") module.exports = { HAFTA_DUZENI, antrenmanGunleri, tahminiMax, HAREKETLER, SLOTLAR, GUNLER, PLANLAR, HEDEFLER, DENEYIM, programUret, ilerlet, plakaHesapla, isinma, yuvarla, bki, fmtKg, alternatifler, baslangicAgirlik };

@@ -41,9 +41,12 @@
   | Yağ yakmak | 3 × 12–15 | 60 sn |
   | Genel form | 3 × 10–12 | 75 sn |
 
+- **Bugün ne var?** Antrenman günlerini kendin seçersin (örn. Salı, Perşembe, Cumartesi). Uygulama haftanın gününe bakıp o günün antrenmanını gösterir; dinlenme gününde sıradakini söyler. İstersen bugün başka bir antrenmanı da seçebilirsin.
 - **Antrenman modu:** Yaptığın seti tikle, dinlenme sayacı başlasın; süre bitince telefon titrer ve sıradaki seti söyler. Isınma setleri ve her hareket için kısa ipuçları var. Ekran antrenman boyunca kararmaz.
 - **Ağırlık kendiliğinden artar:** Bir hareketin bütün setlerinde üst tekrar sayısına ulaşırsan, bir dahakine ağırlık bir kademe yükselir. İki antrenman üst üste zorlanırsan %10 hafifler.
 - **Değiştir:** Bir hareketi sevmediysen ya da makine doluysa, aynı kası çalıştıran başka bir hareketle değiştir.
+- **Su takibi:** Kilona göre günlük bardak hedefi; antrenman günlerinde iki bardak fazlası.
+- **Kişisel rekorlar:** Her hareketteki en ağır setin ve tahmini tek tekrar maksimumun.
 - **İlerleme:** Her hareketin ağırlık grafiği, son 12 haftanın düzeni, vücut ağırlığı takibi ve boy-kilo endeksi.
 - İnternetsiz çalışır, hesap gerekmez; her şey telefonunda saklanır. Yedeğini indirebilirsin.
 

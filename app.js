@@ -5,6 +5,7 @@
   const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const H = HAREKETLER;
   const GUN_KISA = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
+  const GUN_UZUN = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"];
   const AYLAR = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
   const PLAKA_RENK = { 25: "var(--p25)", 20: "var(--p20)", 15: "var(--p15)", 10: "var(--p10)", 5: "var(--p5)", 2.5: "var(--p2)", 1.25: "#9aa3ad" };
 
@@ -12,6 +13,7 @@
   const ANAHTAR = "winter-gym.v1";
   let V = oku() || { profil: null, program: null, gecmis: [], siradaki: 0, kilolar: [], ayar: { ses: true, titresim: true, ekran: true }, aktif: null };
   function oku() { try { return JSON.parse(localStorage.getItem(ANAHTAR)); } catch { return null; } }
+  if (V && V.program && V.profil && !Array.isArray(V.profil.gunler)) V.profil.gunler = V.program.gunler.map(g => g.haftaGunu).sort((a, b) => a - b);
   function kaydet() { try { localStorage.setItem(ANAHTAR, JSON.stringify(V)); } catch { /* gizli sekme */ } }
 
   // ================================================================ yardımcı
@@ -19,6 +21,8 @@
   const bugun = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; };
   const haftaGunu = d => (d.getDay() + 6) % 7; // 0 = Pazartesi
   const haftaBasi = (d = new Date()) => { const x = new Date(d); x.setHours(0, 0, 0, 0); x.setDate(x.getDate() - haftaGunu(x)); return x; };
+  const gunAnahtar = (d = new Date()) => `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+  const dakikaYaz = sn => { const d = Math.max(1, Math.round(sn / 60)); return d < 60 ? `${d} dk` : `${Math.floor(d / 60)} sa ${d % 60} dk`; };
   const tarihYaz = t => { const d = new Date(t); return `${d.getDate()} ${AYLAR[d.getMonth()]}`; };
   const sureYaz = sn => { sn = Math.max(0, Math.round(sn)); const d = Math.floor(sn / 60), s = sn % 60; return d >= 60 ? `${Math.floor(d / 60)} sa ${d % 60} dk` : `${d}:${String(s).padStart(2, "0")}`; };
   const hedefYaz = hr => { const h = H[hr.id]; return h.sure ? `${hr.set} × ${hr.tekrar[0]}–${hr.tekrar[1]} sn` : `${hr.set} × ${hr.tekrar[0]}–${hr.tekrar[1]}`; };
@@ -99,9 +103,15 @@
       ${secenekler("deneyim", [["yeni", "Yeni başlıyorum", "Hiç yapmadım ya da 6 aydan az", "🌱"], ["orta", "6 ay – 2 yıl", "Hareketleri biliyorum", "💪"], ["ileri", "2 yıldan fazla", "Düzenli ve ağır çalışıyorum", "🏔️"]])}`;
     if (a === "hedef") h = `<h1>Hedefin ne?</h1><p class="alt">Set, tekrar ve dinlenme süreleri buna göre ayarlanır.</p>
       ${secenekler("hedef", [["kas", "Kas yapmak", "3 set · 8–12 tekrar · 90 sn dinlenme", "🏋️"], ["guc", "Güçlenmek", "4 set · 4–6 tekrar · 3 dk dinlenme", "🔩"], ["yag", "Yağ yakmak", "3 set · 12–15 tekrar · 60 sn dinlenme", "🔥"], ["form", "Genel form", "3 set · 10–12 tekrar · 75 sn dinlenme", "❄️"]])}`;
-    if (a === "gun") h = `<h1>Haftada kaç gün?</h1><p class="alt">Gerçekten gidebileceğin gün sayısını seç; az ama düzenli, çok ama aksayandan iyidir.</p>
+    if (a === "gun") {
+      if (!Array.isArray(taslak.gunler) || taslak.gunler.length !== taslak.gun) taslak.gunler = HAFTA_DUZENI[taslak.gun].slice();
+      h = `<h1>Haftada kaç gün?</h1><p class="alt">Gerçekten gidebileceğin gün sayısını seç; az ama düzenli, çok ama aksayandan iyidir.</p>
       <div class="gun-sec">${[2, 3, 4, 5, 6].map(g => `<button class="secenek" data-k="gun" data-d="${g}" aria-pressed="${taslak.gun == g}"><b>${g}</b><span>gün</span></button>`).join("")}</div>
-      <p class="not" id="gunNot"></p>`;
+      <p class="not" id="gunNot"></p>
+      <h3 class="alt-baslik">Hangi günler?</h3>
+      ${haftaSecici(taslak.gunler)}
+      <p class="etiket-kucuk" id="gunSay" style="margin-top:8px"></p>`;
+    }
     if (a === "ekip") h = `<h1>Nerede çalışıyorsun?</h1><p class="alt">Hareketler elindeki ekipmana göre seçilir.</p>
       ${secenekler("ekip", [["salon", "Spor salonu", "Bar, makineler, dambıllar", "🏢"], ["ev", "Evde dambılla", "Bir çift ayarlı dambıl ve bir sehpa", "🏠"], ["vucut", "Sadece vücut ağırlığı", "Ekipman yok; şınav, squat, barfiks", "🤸"]])}
       <p class="not">Bu program genel bir öneridir. Bir hareket ağrı yaparsa dur; sağlık sorunun varsa başlamadan önce doktoruna danış.${taslak.yas < 16 ? " 16 yaşından küçük olduğun için ağırlıklar hafif ve tekrarlar yüksek tutuldu; bir büyüğünle birlikte çalış." : ""}</p>`;
@@ -110,9 +120,12 @@
     const gn = $("#gunNot");
     if (gn) gn.textContent = { 2: "2 gün: iki farklı tüm vücut antrenmanı.", 3: "3 gün: üç farklı tüm vücut antrenmanı. Yeni başlayanlar için en iyisi.", 4: "4 gün: üst vücut ve alt vücut, ikişer kez.", 5: "5 gün: itiş, çekiş, bacak, üst ve alt vücut.", 6: "6 gün: itiş, çekiş, bacak; haftada iki tur." }[taslak.gun];
     $("#kurIcerik").querySelectorAll(".secenek").forEach(b => b.onclick = () => {
-      taslak[b.dataset.k] = b.dataset.k === "gun" ? +b.dataset.d : b.dataset.d;
+      if (b.dataset.k === "gun") { taslak.gun = +b.dataset.d; taslak.gunler = HAFTA_DUZENI[taslak.gun].slice(); }
+      else taslak[b.dataset.k] = b.dataset.d;
       kurulumCiz();
     });
+    haftaSeciciBagla($("#kurIcerik"), taslak.gunler, () => { gunSayYaz(); dogrula(); });
+    gunSayYaz();
     $("#kurIcerik").querySelectorAll("[data-az]").forEach(b => b.onclick = () => {
       const k = b.dataset.az, i = $(`#g-${k}`);
       taslak[k] = Math.round((+i.value + +b.dataset.m) * 2) / 2; i.value = taslak[k]; dogrula();
@@ -120,11 +133,30 @@
     $("#kurIcerik").querySelectorAll("[data-g]").forEach(i => i.oninput = () => { taslak[i.dataset.g] = +i.value; dogrula(); });
     dogrula();
   }
+  function gunSayYaz() {
+    const e = $("#gunSay"); if (!e) return;
+    const n = taslak.gunler.length, k = taslak.gun;
+    e.textContent = n === k ? `${taslak.gunler.map(g => GUN_UZUN[g]).join(", ")}. Arada dinlenme günü olması iyi olur.` : n < k ? `${k - n} gün daha seç.` : `${n - k} gün fazla seçtin; ${k} gün seçmelisin.`;
+    e.style.color = n === k ? "" : "var(--sari)";
+  }
+  // 7 günlük seçici (kurulum ve program sekmesinde)
+  function haftaSecici(secili) {
+    return `<div class="hafta-sec">${GUN_KISA.map((d, i) => `<button type="button" data-hg="${i}" aria-pressed="${secili.includes(i)}">${d}</button>`).join("")}</div>`;
+  }
+  function haftaSeciciBagla(kok, dizi, degisti) {
+    kok.querySelectorAll("[data-hg]").forEach(b => b.onclick = () => {
+      const g = +b.dataset.hg, i = dizi.indexOf(g);
+      if (i >= 0) dizi.splice(i, 1); else dizi.push(g);
+      dizi.sort((x, y) => x - y);
+      b.setAttribute("aria-pressed", String(dizi.includes(g)));
+      degisti && degisti();
+    });
+  }
   function dogrula() {
     const a = ADIMLAR[adim];
     const tamam = a === "temel" ? taslak.cinsiyet && taslak.yas >= 12 && taslak.yas <= 90
       : a === "olcu" ? taslak.boy >= 120 && taslak.boy <= 230 && taslak.kilo >= 30 && taslak.kilo <= 250
-      : a === "deneyim" ? !!taslak.deneyim : a === "hedef" ? !!taslak.hedef : a === "gun" ? !!taslak.gun : !!taslak.ekip;
+      : a === "deneyim" ? !!taslak.deneyim : a === "hedef" ? !!taslak.hedef : a === "gun" ? !!taslak.gun && taslak.gunler.length === taslak.gun : !!taslak.ekip;
     $("#kurIleri").disabled = !tamam;
   }
   $("#kurIleri").onclick = () => {
@@ -137,7 +169,7 @@
       const eski = {}; V.program.gunler.forEach(g => g.hareketler.forEach(h => { eski[h.id] = h; }));
       yeniProgram.gunler.forEach(g => g.hareketler.forEach(h => { if (eski[h.id] && H[h.id].tur !== "vucut") h.kg = eski[h.id].kg; }));
     }
-    V.program = yeniProgram; V.siradaki = 0;
+    V.program = yeniProgram; V.siradaki = 0; V.bugunSecim = null;
     if (!V.kilolar.length || V.kilolar[V.kilolar.length - 1].kg !== V.profil.kilo) V.kilolar.push({ t: Date.now(), kg: V.profil.kilo });
     kaydet();
     $("#kurulum").hidden = true; $("#uyg").hidden = false;
@@ -166,38 +198,117 @@
     while (varMi(h)) { n++; h = new Date(h.getTime() - 7 * 864e5); }
     return n;
   }
+  function bugunYapilan() { const b = bugun().getTime(); return V.gecmis.filter(g => g.t >= b); }
+  function sonrakiPlanli() {
+    const P = V.program, wd = haftaGunu(new Date());
+    for (let k = 1; k <= 7; k++) { const w = (wd + k) % 7, gi = P.gunler.findIndex(g => g.haftaGunu === w); if (gi >= 0) return { gi, k, w }; }
+    return { gi: 0, k: 1, w: (wd + 1) % 7 };
+  }
+  // Bugün hangi antrenman? Haftanın gününe göre seçilir; dinlenme gününde sıradaki planlı gün gösterilir.
+  function bugunPlani() {
+    const P = V.program, wd = haftaGunu(new Date());
+    const planli = P.gunler.findIndex(g => g.haftaGunu === wd);
+    const sonraki = sonrakiPlanli();
+    const elle = V.bugunSecim && V.bugunSecim.gun === gunAnahtar() && V.bugunSecim.gi < P.gunler.length ? V.bugunSecim.gi : null;
+    if (bugunYapilan().length) return { durum: "yapildi", gi: elle ?? sonraki.gi, sonraki, planli };
+    if (elle !== null) return { durum: "elle", gi: elle, sonraki, planli };
+    if (planli >= 0) return { durum: "planli", gi: planli, sonraki, planli };
+    return { durum: "dinlenme", gi: sonraki.gi, sonraki, planli };
+  }
+  const kacGunSonra = k => k === 1 ? "yarın" : `${k} gün sonra`;
+
+  // ---------------------------------------------------------------- su
+  const suHedef = () => Math.max(6, Math.min(14, Math.round((V.profil.kilo * .033) / .25))) + (bugunPlani().durum === "dinlenme" ? 0 : 2);
+  const suBugun = () => V.su && V.su.gun === gunAnahtar() ? V.su.n : 0;
+  function suKarti() {
+    const n = suBugun(), hedef = suHedef();
+    return `<div class="kart su-kart"><div class="su-bas"><h3>SU · ${n}/${hedef} BARDAK</h3><span class="etiket-kucuk">${n >= hedef ? "Hedef tamam 💧" : `${((hedef - n) * .25).toFixed(2).replace(/0$/, "").replace(".", ",")} L kaldı`}</span></div>
+      <div class="su-satir">${Array.from({ length: hedef }, (_, i) => `<button data-su="${i}" aria-label="${i + 1}. bardak" class="${i < n ? "dolu" : ""}"><svg viewBox="0 0 24 24"><path d="M6 4h12l-1.6 15.2a2 2 0 0 1-2 1.8H9.6a2 2 0 0 1-2-1.8z"/><path class="su" d="M7.3 10h9.4l-1 9.1a1 1 0 0 1-1 .9H9.3a1 1 0 0 1-1-.9z"/></svg></button>`).join("")}</div></div>`;
+  }
+  function suBagla() {
+    $("#sayfa").querySelectorAll("[data-su]").forEach(b => b.onclick = () => {
+      const i = +b.dataset.su, n = suBugun();
+      V.su = { gun: gunAnahtar(), n: n === i + 1 ? i : i + 1 }; kaydet();
+      if (V.su.n === suHedef() && n < V.su.n) { bildir("Bugünkü su hedefi tamam 💧"); titret(30); }
+      const k = $(".su-kart"); k.outerHTML = suKarti(); suBagla();
+    });
+  }
+
+  function hareketListesi(g) {
+    return `<ul class="hareket-listesi">${g.hareketler.map(h => `<li>
+          <span class="plaka-nokta" style="background:${H[h.id].tur === "vucut" ? "var(--yuzey2)" : plakaRengi(h.kg)}"></span>
+          <span class="ad">${esc(H[h.id].ad)}<small>${esc(H[h.id].kas)}</small></span>
+          <span class="hedef">${hedefYaz(h)}<small>${kgYaz(h)}</small></span></li>`).join("")}</ul>`;
+  }
+  const sureTahmin = g => Math.round(g.hareketler.reduce((t, h) => t + h.set * (45 + h.dinlenme), 0) / 60);
+
   function bugunCiz() {
-    const P = V.program, g = P.gunler[V.siradaki % P.gunler.length];
+    const P = V.program, plan = bugunPlani(), g = P.gunler[plan.gi];
     const yapilan = buHaftaYapilan(), bugunNo = haftaGunu(new Date());
-    const planli = new Set(P.gunler.map(x => x.haftaGunu));
     const yapildi = new Set(yapilan.map(x => haftaGunu(new Date(x.t))));
     const saat = new Date().getHours();
     const selam = saat < 6 ? "Gece kuşu" : saat < 12 ? "Günaydın" : saat < 18 ? "İyi günler" : "İyi akşamlar";
-    const dakika = Math.round(g.hareketler.reduce((t, h) => t + h.set * (45 + h.dinlenme), 0) / 60);
+    const sn = plan.sonraki, sg = P.gunler[sn.gi];
+    let ana = "";
+    if (plan.durum === "planli" || plan.durum === "elle") {
+      ana = `<div class="kart siradaki">
+        <span class="gun-harf" aria-hidden="true">${g.harf}</span>
+        <div class="ust">${plan.durum === "planli" ? `Bugün · ${GUN_UZUN[bugunNo]} · Gün ${g.harf}` : `Bugün · seçtiğin antrenman · Gün ${g.harf}`}</div>
+        <h2>${esc(g.ad)}</h2>
+        <p class="etiket-kucuk" style="margin-top:6px">${g.hareketler.length} hareket · yaklaşık ${sureTahmin(g)} dakika</p>
+        ${hareketListesi(g)}
+        <button class="ana-btn" id="basla" ${V.aktif ? "disabled" : ""}>Antrenmana başla</button>
+        <div class="ant-araclar" style="margin-top:6px"><button class="metin-btn" id="baskaGun">Başka bir antrenman yap</button>${plan.durum === "elle" && plan.planli < 0 ? `<button class="metin-btn" id="dinlen">Bugün dinlen</button>` : ""}</div>
+      </div>`;
+    } else if (plan.durum === "dinlenme") {
+      ana = `<div class="kart dinlenme-kart">
+        <div class="ust">Bugün · ${GUN_UZUN[bugunNo]}</div>
+        <h2>Dinlenme günü</h2>
+        <p class="etiket-kucuk" style="margin:8px 0 14px">Kaslar antrenmanda değil, dinlenirken büyür. Bol su iç, iyi uyu; istersen hafif bir yürüyüş yap.</p>
+        <div class="sonraki-satir"><span class="harf">${sg.harf}</span><div><small>Sıradaki · ${GUN_UZUN[sn.w]} (${kacGunSonra(sn.k)})</small><b>${esc(sg.ad)}</b></div></div>
+        <button class="ikinci-btn" id="yineDe" style="width:100%;margin-top:14px" ${V.aktif ? "disabled" : ""}>Yine de bugün antrenman yap</button>
+      </div>`;
+    } else {
+      const son = bugunYapilan().slice(-1)[0], setN = son.hareketler.reduce((t, h) => t + h.setler.filter(x => x.tamam).length, 0);
+      ana = `<div class="kart tamam-kart">
+        <div class="ust">Bugün · ${GUN_UZUN[bugunNo]}</div>
+        <h2>Antrenman tamam&nbsp;✓</h2>
+        <p class="etiket-kucuk" style="margin:8px 0 14px">${esc(son.gunAd)} · ${dakikaYaz(son.sure)} · ${setN} set · ${son.hacim} kg</p>
+        <div class="sonraki-satir"><span class="harf">${sg.harf}</span><div><small>Sıradaki · ${GUN_UZUN[sn.w]} (${kacGunSonra(sn.k)})</small><b>${esc(sg.ad)}</b></div></div>
+      </div>`;
+    }
     $("#sayfa").innerHTML = `
       <div class="sayfa-bas"><h1><small>${selam}</small>Bugün</h1><span class="logo">❄ WINTER GYM</span></div>
       ${V.aktif ? `<div class="kart" style="border-color:rgba(111,219,160,.4)"><h3>YARIM KALAN ANTRENMAN</h3><h2>${esc(V.aktif.gunAd)}</h2><p class="etiket-kucuk" style="margin:6px 0 14px">${sureYaz((Date.now() - V.aktif.basla) / 1000)} önce başladın</p><button class="ana-btn" id="devam">Kaldığın yerden devam et</button></div>` : ""}
-      <div class="kart siradaki">
-        <span class="gun-harf" aria-hidden="true">${g.harf}</span>
-        <div class="ust">Sıradaki · Gün ${g.harf}</div>
-        <h2>${esc(g.ad)}</h2>
-        <p class="etiket-kucuk" style="margin-top:6px">${g.hareketler.length} hareket · yaklaşık ${dakika} dakika</p>
-        <ul class="hareket-listesi">${g.hareketler.map(h => `<li>
-          <span class="plaka-nokta" style="background:${H[h.id].tur === "vucut" ? "var(--yuzey2)" : plakaRengi(h.kg)}"></span>
-          <span class="ad">${esc(H[h.id].ad)}<small>${esc(H[h.id].kas)}</small></span>
-          <span class="hedef">${hedefYaz(h)}<small>${kgYaz(h)}</small></span></li>`).join("")}</ul>
-        <button class="ana-btn" id="basla" ${V.aktif ? "disabled" : ""}>Antrenmana başla</button>
-      </div>
+      ${ana}
       <div class="kart"><h3>BU HAFTA · ${yapilan.length}/${P.gunler.length} ANTRENMAN</h3>
-        <div class="hafta">${GUN_KISA.map((d, i) => `<div><i class="${yapildi.has(i) ? "yapildi" : planli.has(i) ? "plan" : ""} ${i === bugunNo ? "bugun" : ""}">${yapildi.has(i) ? "✓" : planli.has(i) ? "·" : ""}</i>${d}</div>`).join("")}</div>
+        <div class="hafta">${GUN_KISA.map((d, i) => { const pg = P.gunler.find(x => x.haftaGunu === i); return `<div><i class="${yapildi.has(i) ? "yapildi" : pg ? "plan" : ""} ${i === bugunNo ? "bugun" : ""}">${yapildi.has(i) ? "✓" : pg ? pg.harf : ""}</i>${d}</div>`; }).join("")}</div>
       </div>
+      ${suKarti()}
       <div class="sayilar">
         <div><b>${V.gecmis.length}</b><span>antrenman</span></div>
         <div><b>${seri()}</b><span>hafta seri</span></div>
         <div><b>${V.gecmis.length ? tarihYaz(V.gecmis[V.gecmis.length - 1].t).split(" ")[0] : "–"}</b><span>${V.gecmis.length ? tarihYaz(V.gecmis[V.gecmis.length - 1].t).split(" ")[1] : "son antrenman"}</span></div>
       </div>`;
-    const b = $("#basla"); if (b) b.onclick = () => antrenmanBasla();
+    const b = $("#basla"); if (b) b.onclick = () => antrenmanBasla(plan.gi);
     const d = $("#devam"); if (d) d.onclick = () => antrenmanAc();
+    const y = $("#yineDe"); if (y) y.onclick = () => { V.bugunSecim = { gun: gunAnahtar(), gi: sn.gi }; kaydet(); bugunCiz(); };
+    const bg = $("#baskaGun"); if (bg) bg.onclick = () => gunSecAc(plan.gi);
+    const dn = $("#dinlen"); if (dn) dn.onclick = () => { V.bugunSecim = null; kaydet(); bugunCiz(); };
+    suBagla();
+  }
+  function gunSecAc(simdiki) {
+    const P = V.program;
+    tabakaAc(`<h2>Bugün hangisi?</h2><p>Programdaki başka bir antrenmanı bugün yapabilirsin. Ağırlıklar ve ilerleme aynen devam eder.</p>
+      ${P.gunler.map((g, i) => `<button class="liste-btn" data-gi="${i}" ${i === simdiki ? 'aria-current="true"' : ""}>${g.harf} · ${esc(g.ad)}<small>${GUN_KISA[g.haftaGunu]} · ${g.hareketler.length} hareket${i === simdiki ? " · şu an seçili" : ""}</small></button>`).join("")}
+      <div class="tabaka-btn"><button class="ikinci-btn" id="vazgec">Vazgeç</button></div>`, k => {
+      k.querySelectorAll("[data-gi]").forEach(b => b.onclick = () => {
+        const gi = +b.dataset.gi;
+        V.bugunSecim = P.gunler[gi].haftaGunu === haftaGunu(new Date()) ? null : { gun: gunAnahtar(), gi };
+        kaydet(); tabakaKapat(); bugunCiz();
+      });
+      k.querySelector("#vazgec").onclick = tabakaKapat;
+    });
   }
 
   // ---------------------------------------------------------------- program
@@ -211,11 +322,32 @@
       <div class="gun-sekme" role="tablist">${P.gunler.map((x, i) => `<button role="tab" aria-selected="${i === secGun}" data-i="${i}"><b>${x.harf}</b><span>${GUN_KISA[x.haftaGunu]}</span></button>`).join("")}</div>
       <div class="kart" style="padding:14px 16px"><h2>${esc(g.ad)}</h2><p class="etiket-kucuk" style="margin-top:4px">Bir harekete dokunup ağırlığını, set ve tekrarını değiştirebilir ya da başka bir hareketle değiştirebilirsin.</p></div>
       ${g.hareketler.map((h, i) => `<button class="hareket-satir" data-h="${i}"><span class="no">${i + 1}</span><span class="ad">${esc(H[h.id].ad)}<small>${esc(H[h.id].kas)} · ${h.dinlenme} sn dinlenme</small></span><span class="hedef">${hedefYaz(h)}<small>${kgYaz(h)}</small></span></button>`).join("")}
-      <div class="ant-araclar"><button class="metin-btn" id="yeniden">Programı baştan oluştur</button></div>`;
+      <div class="ant-araclar"><button class="metin-btn" id="gunlerBtn">Antrenman günlerini değiştir</button><button class="metin-btn" id="yeniden">Programı baştan oluştur</button></div>`;
     $("#sayfa").querySelectorAll(".gun-sekme button").forEach(b => b.onclick = () => { secGun = +b.dataset.i; programCiz(); });
     $("#sayfa").querySelectorAll(".hareket-satir").forEach(b => b.onclick = () => hareketDuzenle(secGun, +b.dataset.h, programCiz));
+    $("#gunlerBtn").onclick = gunlerAc;
     $("#yeniden").onclick = () => onayla("Baştan oluşturulsun mu?", "Hareketler ve ağırlıklar profiline göre yeniden hesaplanır. Antrenman geçmişin silinmez.", "Baştan oluştur", () => {
       V.program = programUret(V.profil); V.siradaki = 0; kaydet(); programCiz(); bildir("Program yeniden oluşturuldu");
+    });
+  }
+
+  function gunlerAc() {
+    const P = V.program, n = P.gunler.length, secim = P.gunler.map(g => g.haftaGunu).sort((a, b) => a - b);
+    const ciz = () => {
+      const tamam = secim.length === n;
+      const k = $("#tabakaIcerik");
+      k.querySelector("#gunOn").innerHTML = tamam ? P.gunler.map((g, i) => `<span><b>${g.harf}</b> ${GUN_UZUN[secim[i]]}</span>`).join("") : `<span style="color:var(--sari)">${secim.length < n ? `${n - secim.length} gün daha seç` : `${secim.length - n} gün fazla; ${n} gün seç`}</span>`;
+      k.querySelector("#gunKaydet").disabled = !tamam;
+    };
+    tabakaAc(`<h2>Antrenman günleri</h2><p>Haftada ${n} gün. Hangi günler spora gidiyorsun? "Bugün" ekranı bu günlere göre antrenmanı seçer.</p>
+      ${haftaSecici(secim)}<div class="gun-on" id="gunOn"></div>
+      <div class="tabaka-btn"><button class="ana-btn" id="gunKaydet">Kaydet</button><button class="ikinci-btn" id="vazgec">Vazgeç</button></div>`, k => {
+      haftaSeciciBagla(k, secim, ciz); ciz();
+      k.querySelector("#vazgec").onclick = tabakaKapat;
+      k.querySelector("#gunKaydet").onclick = () => {
+        P.gunler.forEach((g, i) => { g.haftaGunu = secim[i]; });
+        V.profil.gunler = secim.slice(); V.bugunSecim = null; kaydet(); tabakaKapat(); programCiz(); bildir("Antrenman günlerin güncellendi");
+      };
     });
   }
 
@@ -259,8 +391,8 @@
   }
 
   // ================================================================ antrenman modu
-  function antrenmanBasla() {
-    const gi = V.siradaki % V.program.gunler.length, g = V.program.gunler[gi];
+  function antrenmanBasla(gi = bugunPlani().gi) {
+    const g = V.program.gunler[gi];
     V.aktif = {
       gi, gunAd: g.ad, basla: Date.now(), simdi: 0,
       hareketler: g.hareketler.map(h => ({ id: h.id, setler: Array.from({ length: h.set }, () => ({ kg: h.kg, tekrar: h.tekrar[1], tamam: false })) })),
@@ -403,12 +535,12 @@
     });
     V.gecmis.push({ t: Date.now(), gi: A.gi, gunAd: A.gunAd, sure, hacim: Math.round(hacim), hareketler: A.hareketler });
     V.siradaki = (A.gi + 1) % V.program.gunler.length;
-    V.aktif = null; kaydet();
+    V.aktif = null; V.bugunSecim = null; kaydet();
     $("#antrenman").hidden = true; clearInterval(saatT); ekranAcik(false);
     git("bugun");
     bip(660, .12); bip(880, .12, .12); bip(1320, .3, .24); titret([80, 60, 80]);
     tabakaAc(`<div class="ozet-ust"><div class="buyuk">Tamamlandı</div><p>${esc(A.gunAd)}</p></div>
-      <div class="sayilar" style="margin-bottom:14px"><div><b>${Math.round(sure / 60)}</b><span>dakika</span></div><div><b>${setSay}</b><span>set</span></div><div><b>${hacim >= 1000 ? (hacim / 1000).toFixed(1).replace(".", ",") : Math.round(hacim)}</b><span>${hacim >= 1000 ? "ton kaldırdın" : "kg kaldırdın"}</span></div></div>
+      <div class="sayilar" style="margin-bottom:14px"><div><b>${Math.max(1, Math.round(sure / 60))}</b><span>dakika</span></div><div><b>${setSay}</b><span>set</span></div><div><b>${hacim >= 1000 ? (hacim / 1000).toFixed(1).replace(".", ",") : Math.round(hacim)}</b><span>${hacim >= 1000 ? "ton kaldırdın" : "kg kaldırdın"}</span></div></div>
       ${rekorlar.map(r => `<div class="artis">🏆 Yeni rekor · ${esc(r)}</div>`).join("")}
       ${degisimler.map(d => `<div class="artis ${d.degisim === "azaldi" ? "azaldi" : ""}">${d.degisim === "azaldi" ? "↘" : "↗"} ${esc(d.mesaj)}</div>`).join("")}
       ${!degisimler.length ? `<p style="margin-top:6px">Bütün setlerde üst tekrar sayısına ulaştığında, o hareketin ağırlığı bir sonraki antrenmanda kendiliğinden artar.</p>` : ""}
@@ -441,6 +573,7 @@
         ${ids.length ? `<div class="cip-satir">${ids.map(id => `<button class="cip" data-id="${id}" aria-pressed="${id === secHareket}">${esc(H[id].ad)}</button>`).join("")}</div>` : ""}
         <div class="grafik">${secHareket ? cizgiGrafik(V.gecmis.filter(g => g.hareketler.some(h => h.id === secHareket)).map(g => ({ t: g.t, y: Math.max(...g.hareketler.filter(h => h.id === secHareket).flatMap(h => h.setler.filter(s => s.tamam).map(s => s.kg)), 0) })).filter(n => n.y > 0), "kg") : `<div class="bos">İlk antrenmanını bitirince her hareketin ağırlık grafiği burada çıkacak.</div>`}</div>
       </div>
+      ${rekorKarti()}
       <div class="kart"><h3>VÜCUT AĞIRLIĞI</h3>
         <div style="display:flex;align-items:baseline;gap:8px"><span class="buyuk-sayi">${fmtKg(V.profil.kilo)}</span><span class="etiket-kucuk">kg · ${V.profil.boy} cm</span></div>
         <div class="grafik">${V.kilolar.length > 1 ? cizgiGrafik(V.kilolar.map(k => ({ t: k.t, y: k.kg })), "kg") : ""}</div>
@@ -451,13 +584,29 @@
         <div class="bki-cubuk"><i style="left:${Math.min(98, Math.max(0, (b - 15) / 25 * 100))}%"></i></div>
         <p class="etiket-kucuk">Endeks sadece boy ve kiloya bakar; kaslı vücutlarda yüksek çıkabilir. Bir sağlık ölçüsü değil, kaba bir rehberdir.</p>
       </div>
-      ${V.gecmis.length ? `<div class="kart"><h3>SON ANTRENMANLAR</h3>${V.gecmis.slice(-8).reverse().map(g => `<div class="gecmis-satir"><div><b>${esc(g.gunAd)}</b><small>${tarihYaz(g.t)} · ${sureYaz(g.sure).replace(/:\d\d$/, "")} dk</small></div><span class="etiket-kucuk">${g.hacim} kg</span></div>`).join("")}</div>` : ""}`;
+      ${V.gecmis.length ? `<div class="kart"><h3>SON ANTRENMANLAR</h3>${V.gecmis.slice(-8).reverse().map(g => `<div class="gecmis-satir"><div><b>${esc(g.gunAd)}</b><small>${tarihYaz(g.t)} · ${dakikaYaz(g.sure)}</small></div><span class="etiket-kucuk">${g.hacim} kg</span></div>`).join("")}</div>` : ""}`;
     $("#sayfa").querySelectorAll(".cip").forEach(c => c.onclick = () => { secHareket = c.dataset.id; ilerlemeCiz(); });
     $("#kiloEkle").onclick = () => {
       const v = parseFloat(String($("#yeniKilo").value).replace(",", "."));
       if (!(v >= 30 && v <= 250)) return bildir("30 ile 250 arasında bir kilo yaz");
       V.kilolar.push({ t: Date.now(), kg: v }); V.profil.kilo = v; kaydet(); ilerlemeCiz(); bildir("Kilon kaydedildi");
     };
+  }
+
+  function rekorKarti() {
+    const r = {};
+    V.gecmis.forEach(g => g.hareketler.forEach(h => h.setler.forEach(st => {
+      if (!st.tamam) return;
+      const x = H[h.id], o = r[h.id] || (r[h.id] = { id: h.id, kg: 0, tekrar: 0, max: 0, t: g.t });
+      if (x.tur === "vucut") { if (st.tekrar > o.tekrar) Object.assign(o, { tekrar: st.tekrar, t: g.t }); return; }
+      const m = tahminiMax(st.kg, st.tekrar);
+      if (st.kg > o.kg || (st.kg === o.kg && st.tekrar > o.tekrar)) Object.assign(o, { kg: st.kg, tekrar: st.tekrar, t: g.t });
+      o.max = Math.max(o.max, m);
+    })));
+    const liste = Object.values(r).filter(o => o.kg || o.tekrar).sort((a, b) => (H[b.id].ana ? 1 : 0) - (H[a.id].ana ? 1 : 0) || b.max - a.max);
+    if (!liste.length) return "";
+    return `<div class="kart"><h3>KİŞİSEL REKORLAR</h3>${liste.slice(0, 10).map(o => { const x = H[o.id]; return `<div class="rekor-satir"><span class="kupa" aria-hidden="true">🏆</span><div><b>${esc(x.ad)}</b><small>${tarihYaz(o.t)}${x.tur !== "vucut" && o.tekrar > 1 ? ` · tahmini tek tekrar ${fmtKg(Math.round(o.max * 2) / 2)} kg` : ""}</small></div><span class="deger">${x.tur === "vucut" ? `${o.tekrar} ${x.sure ? "sn" : "tekrar"}` : `${fmtKg(o.kg)} kg × ${o.tekrar}`}</span></div>`; }).join("")}
+      <p class="etiket-kucuk" style="margin-top:8px">Tahmini tek tekrar, yaptığın ağırlık ve tekrardan hesaplanır. Gerçekten denemeden önce iyi ısın ve yanında biri olsun.</p></div>`;
   }
 
   function cizgiGrafik(n, birim) {
@@ -550,5 +699,5 @@
   else { $("#uyg").hidden = false; git("bugun"); if (V.aktif) antrenmanAc(); }
 
   // Testler ve tanıtım videosu için
-  window.WinterGym = { veri: () => V, yaz: v => { V = v; kaydet(); }, git, antrenmanBasla, dinlenmeBitir };
+  window.WinterGym = { veri: () => V, yaz: v => { V = v; kaydet(); }, git, antrenmanBasla, dinlenmeBitir, bugunPlani };
 })();
