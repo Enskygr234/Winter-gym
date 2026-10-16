@@ -1,5 +1,5 @@
 // Çevrimdışı çalışma için basit önbellek
-const AD = "winter-gym-v1";
+const AD = "winter-gym-v2";
 const DOSYALAR = ["./", "index.html", "style.css", "app.js", "program.js", "manifest.json", "icons/icon-192.png", "icons/icon-512.png",
   "fonts/bigshoulders.woff", "fonts/barlow-regular.woff", "fonts/barlow-medium.woff", "fonts/barlow-semibold.woff", "fonts/barlow-bold.woff"];
 self.addEventListener("install", e => { e.waitUntil(caches.open(AD).then(c => c.addAll(DOSYALAR))); self.skipWaiting(); });
