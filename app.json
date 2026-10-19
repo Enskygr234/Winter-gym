@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "name": "Demir Fitness",
+    "slug": "demir-fitness",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#121318",
+    "ios": { "supportsTablet": false },
+    "android": { "softwareKeyboardLayoutMode": "pan" }
+  }
+}
