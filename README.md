@@ -14,24 +14,27 @@ npx expo start
 
 Telefona **Expo Go** uygulamasını kur, terminaldeki QR kodu okut.
 
-## Ekranlar
+## Özellikler
 
-| Ekran | Dosya | Ne yapıyor |
-|---|---|---|
-| Ana Sayfa | `src/screens/HomeScreen.js` | Seri, günün planı, haftalık hacim/antrenman/kalori, hızlı erişim |
-| Planlar | `src/screens/PlansScreen.js` | Hazır + kendi planların. Kendi planını silmek için basılı tut |
-| Plan oluştur | `src/screens/CreatePlanScreen.js` | İsim + hareket seçimi, süre/kalori otomatik hesaplanır |
-| Aktif antrenman | `src/screens/WorkoutScreen.js` | Sayaç, kg/rep girişi, set tamamla (✓), set ekle, ilerleme çubuğu. Ağırlıklar son antrenmandan gelir |
-| İlerleme | `src/screens/ProgressScreen.js` | Kilo grafiği, ölçümler (kilo/bel/göğüs), haftalık hacim grafiği, yeni ölçüm ekleme |
-| Hareketler | `src/screens/ExercisesScreen.js` | Arama + kas grubu filtresi |
-| Profil | `src/screens/ProfileScreen.js` | İsim değiştirme, toplam istatistikler, son antrenmanlar, verileri sıfırla |
+- **SQLite veritabanı** (`expo-sqlite`): planlar, antrenmanlar, her set, ölçümler telefonda kalıcı saklanır. Eski sürümdeki veriler ilk açılışta otomatik taşınır.
+- **59 hareketlik kütüphane**: 6 kas grubu, açıklama, ipuçları, hedef set/tekrar/dinlenme.
+- **Hareket detayı**: kişisel rekorlar (en ağır, tahmini 1RM, en çok tekrar) ve son antrenmanlardaki gelişim grafiği.
+- **Antrenman geçmişi**: aylara göre liste, her antrenmanın set set detayı, silme.
+- **Rekorlar**: tüm hareketlerdeki en iyi derecen; antrenman bitince kırılan rekorlar bildirilir.
+- **Dinlenme sayacı**: set tamamlanınca otomatik başlar, ±15 sn, atla, bitince titreşim.
+- **Plan düzenleme**: hareket ekle/çıkar/sırala, set, tekrar ve dinlenme süresi ayarla; hazır programları kopyalayıp düzenle.
+- **Yedekleme**: Profil > Verileri yedekle ile tüm veriyi JSON olarak paylaş.
 
-## Yapı
+## Veritabanı şeması
 
-- `App.js` — sekmeler ve ekran geçişleri (ek navigation kütüphanesi yok, Android geri tuşu destekli)
-- `src/data/defaults.js` — hareket listesi ve hazır planlar (yeni hareket eklemek için buraya ekle)
-- `src/data/store.js` — tüm veri: planlar, antrenmanlar, ölçümler, seri ve haftalık özet hesabı
-- `src/theme.js` — renkler ve yazı stilleri
-- `src/components/` — ortak buton, kart, başlık ve alt sekme çubuğu
+| Tablo | İçerik |
+|---|---|
+| `exercises` | Hareket kütüphanesi (yerleşik + ileride özel hareketler) |
+| `plans`, `plan_items` | Planlar ve sıralı hareketleri (set, tekrar, dinlenme) |
+| `workouts`, `workout_sets` | Biten antrenmanlar ve her setin kg/tekrarı |
+| `measurements` | Kilo, bel, göğüs ölçümleri |
+| `settings` | Kullanıcı adı, seed/migration bayrakları |
 
-İlerleme ekranındaki kilo ölçümleri örnek veridir; Profil > "Verileri sıfırla" ile temizlenir.
+Kod: `src/data/db.js` (SQL), `src/data/store.js` (uygulama durumu), `src/data/exercises.js` (hareket listesi — yeni hareket eklemek için buraya ekleyip `SEED_VERSION`'ı artır).
+
+APK: `main`'e her push'ta GitHub Actions derler → [son sürümü indir](https://github.com/Enskygr234/Winter-gym/releases/download/son-surum/demir-fitness.apk)

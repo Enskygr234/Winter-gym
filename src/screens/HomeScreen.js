@@ -58,7 +58,11 @@ export default function HomeScreen({ nav }) {
       <Text style={[type.h2, { marginTop: 30, marginBottom: 16 }]}>Hızlı erişim</Text>
       <View style={{ flexDirection: 'row', gap: 14 }}>
         <OutlineButton style={{ flex: 1 }} label="Hareketler" iconNode={<DumbbellIcon />} onPress={() => nav.go('exercises')} />
-        <OutlineButton style={{ flex: 1 }} label="Plan oluştur" icon="add-circle-outline" onPress={() => nav.go('createPlan')} />
+        <OutlineButton style={{ flex: 1 }} label="Plan oluştur" icon="add-circle-outline" onPress={() => nav.go('planEditor')} />
+      </View>
+      <View style={{ flexDirection: 'row', gap: 14, marginTop: 14 }}>
+        <OutlineButton style={{ flex: 1 }} label="Geçmiş" icon="history" onPress={() => nav.go('history')} />
+        <OutlineButton style={{ flex: 1 }} label="Rekorlar" icon="emoji-events" onPress={() => nav.go('records')} />
       </View>
     </ScrollView>
   );

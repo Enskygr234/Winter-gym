@@ -1,70 +1,111 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { useStore } from '../data/store';
-import { findExercise } from '../data/defaults';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, Vibration, View,
+} from 'react-native';
+import { useStore, fmtDuration } from '../data/store';
 import { Header, Icon, PrimaryButton } from '../components/ui';
 import { colors, radius } from '../theme';
 
-const fmt = (sec) =>
+const clock = (sec) =>
   [Math.floor(sec / 3600), Math.floor((sec % 3600) / 60), sec % 60].map((n) => String(n).padStart(2, '0')).join(':');
+const mmss = (sec) => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
+const firstNum = (reps, fallback) => parseInt(String(reps).match(/\d+/)?.[0] ?? fallback, 10);
 
 export default function WorkoutScreen({ nav, params }) {
-  const { getPlan, workouts, saveWorkout } = useStore();
+  const { getPlan, exercise, lastSets, saveWorkout } = useStore();
   const plan = getPlan(params.planId);
   const [startedAt] = useState(Date.now());
-  const [elapsed, setElapsed] = useState(0);
+  const [now, setNow] = useState(Date.now());
+  const [rest, setRest] = useState(null); // { endAt, total }
+  const [saving, setSaving] = useState(false);
+  const buzzed = useRef(false);
 
-  // Her hareket için setler; ağırlıklar son antrenmandan gelir
+  // Her hareket için setler; ağırlık/tekrar son antrenmandan gelir
   const [log, setLog] = useState(() =>
-    plan.exerciseIds.map((id) => {
-      const ex = findExercise(id);
-      const prev = [...workouts].reverse().flatMap((w) => w.log || []).find((l) => l.exerciseId === id);
+    plan.items.map((it) => {
+      const ex = exercise(it.exerciseId);
+      const prev = lastSets[it.exerciseId] || [];
       return {
-        exerciseId: id,
-        sets: Array.from({ length: ex.sets }, (_, i) => ({
-          kg: String(prev?.sets[i]?.kg ?? ex.defaultKg),
-          rep: String(prev?.sets[i]?.rep ?? ex.defaultRep),
-          done: false,
-        })),
+        exerciseId: it.exerciseId,
+        reps: it.reps,
+        restSec: it.rest,
+        sets: Array.from({ length: it.sets }, (_, i) => {
+          const p = prev[i] || prev[prev.length - 1];
+          return {
+            kg: String(p?.kg ?? ex.defaultKg),
+            rep: String(p?.reps ?? firstNum(it.reps, ex.defaultRep)),
+            done: false,
+          };
+        }),
       };
     })
   );
 
   useEffect(() => {
-    const t = setInterval(() => setElapsed(Math.floor((Date.now() - startedAt) / 1000)), 1000);
+    const t = setInterval(() => setNow(Date.now()), 500);
     return () => clearInterval(t);
-  }, [startedAt]);
+  }, []);
+
+  const elapsed = Math.floor((now - startedAt) / 1000);
+  const restLeft = rest ? Math.max(0, Math.ceil((rest.endAt - now) / 1000)) : 0;
+
+  // Dinlenme bitince titret
+  useEffect(() => {
+    if (rest && restLeft === 0 && !buzzed.current) {
+      buzzed.current = true;
+      Vibration.vibrate([0, 400, 200, 400]);
+      const t = setTimeout(() => setRest(null), 1500);
+      return () => clearTimeout(t);
+    }
+  }, [rest, restLeft]);
+
+  const startRest = (sec) => {
+    buzzed.current = false;
+    setRest({ endAt: Date.now() + sec * 1000, total: sec });
+  };
+  const shiftRest = (d) =>
+    setRest((r) => (r ? { endAt: Math.max(Date.now() + 1000, r.endAt + d * 1000), total: Math.max(1, r.total + d) } : r));
 
   const { total, done } = useMemo(() => {
     const all = log.flatMap((l) => l.sets);
     return { total: all.length, done: all.filter((x) => x.done).length };
   }, [log]);
 
-  const update = (ei, si, patch) =>
-    setLog((l) => l.map((e, i) => (i !== ei ? e : { ...e, sets: e.sets.map((x, j) => (j === si ? { ...x, ...patch } : x)) })));
+  const update = (ei, si, p) =>
+    setLog((l) => l.map((e, i) => (i !== ei ? e : { ...e, sets: e.sets.map((x, j) => (j === si ? { ...x, ...p } : x)) })));
+
+  const toggleDone = (ei, si) => {
+    const wasDone = log[ei].sets[si].done;
+    update(ei, si, { done: !wasDone });
+    if (!wasDone) startRest(log[ei].restSec || 90);
+  };
 
   const addSet = (ei) =>
     setLog((l) => l.map((e, i) => (i !== ei ? e : { ...e, sets: [...e.sets, { ...e.sets[e.sets.length - 1], done: false }] })));
+  const removeSet = (ei) =>
+    setLog((l) => l.map((e, i) => (i !== ei || e.sets.length <= 1 ? e : { ...e, sets: e.sets.slice(0, -1) })));
 
-  const finish = () => {
+  const finish = async () => {
+    setSaving(true);
     const counted = done > 0 ? (x) => x.done : () => true;
-    const cleanLog = log.map((e) => ({
-      exerciseId: e.exerciseId,
-      sets: e.sets.filter(counted).map((x) => ({ kg: parseFloat(x.kg) || 0, rep: parseInt(x.rep, 10) || 0 })),
-    }));
-    const volume = cleanLog.reduce((s, e) => s + e.sets.reduce((a, x) => a + x.kg * x.rep, 0), 0);
-    const ratio = done > 0 ? done / total : 1;
-    saveWorkout({
-      planId: plan.id,
-      planName: plan.name,
-      date: Date.now(),
-      durationSec: elapsed,
-      volume: Math.round(volume),
-      kcal: Math.round(plan.kcal * ratio),
-      log: cleanLog,
-    });
-    Alert.alert('Tebrikler! 💪', `${plan.name} tamamlandı.\n${Math.round(volume)} kg hacim · ${fmt(elapsed)}`);
-    nav.back();
+    const cleanLog = log
+      .map((e) => ({
+        exerciseId: e.exerciseId,
+        sets: e.sets.filter(counted).map((x) => ({ kg: parseFloat(x.kg) || 0, rep: parseInt(x.rep, 10) || 0 })).filter((x) => x.rep > 0),
+      }))
+      .filter((e) => e.sets.length);
+    try {
+      const res = await saveWorkout({
+        planId: plan.id, planName: plan.name, startedAt, durationSec: elapsed,
+        kcal: Math.round(plan.kcal * (done > 0 ? done / total : 1)), log: cleanLog,
+      });
+      const rec = res.records.length ? `\n\n🏆 Yeni rekor!\n${res.records.join('\n')}` : '';
+      Alert.alert('Tebrikler! 💪', `${plan.name} tamamlandı.\n${res.volume} kg hacim · ${fmtDuration(elapsed)}${rec}`);
+      nav.back();
+    } catch (e) {
+      setSaving(false);
+      Alert.alert('Kaydedilemedi', String(e.message || e));
+    }
   };
 
   const confirmFinish = () =>
@@ -92,20 +133,25 @@ export default function WorkoutScreen({ nav, params }) {
           </Pressable>
           <View style={st.timer}>
             <Icon name="timer" size={18} color={colors.accent} />
-            <Text style={st.timerText}>{fmt(elapsed)}</Text>
+            <Text style={st.timerText}>{clock(elapsed)}</Text>
           </View>
         </View>
         <Header eyebrow="Aktif antrenman" title={plan.name} />
         <View style={st.progress}>
-          <View style={[st.progressFill, { width: `${(done / total) * 100}%` }]} />
+          <View style={[st.progressFill, { width: `${total ? (done / total) * 100 : 0}%` }]} />
         </View>
 
         {log.map((e, ei) => {
-          const ex = findExercise(e.exerciseId);
+          const ex = exercise(e.exerciseId);
           return (
-            <View key={e.exerciseId} style={st.card}>
-              <Text style={st.exName}>{ex.name}</Text>
-              <Text style={st.exMeta}>{ex.muscle} · hedef {ex.sets} set × {ex.reps}</Text>
+            <View key={e.exerciseId + ei} style={st.card}>
+              <Pressable onPress={() => nav.go('exerciseDetail', { id: e.exerciseId })} style={st.exHead}>
+                <View style={{ flex: 1 }}>
+                  <Text style={st.exName}>{ex.name}</Text>
+                  <Text style={st.exMeta}>{ex.muscle} · hedef {e.sets.length} set × {e.reps} · {e.restSec} sn</Text>
+                </View>
+                <Icon name="info-outline" size={22} color={colors.muted} />
+              </Pressable>
               {e.sets.map((x, si) => (
                 <View key={si} style={[st.setRow, x.done && { opacity: 0.55 }]}>
                   <View style={st.setNo}><Text style={st.setNoText}>{si + 1}</Text></View>
@@ -119,25 +165,49 @@ export default function WorkoutScreen({ nav, params }) {
                     onChangeText={(rep) => update(ei, si, { rep })}
                   />
                   <Text style={st.unit}>rep</Text>
-                  <Pressable onPress={() => update(ei, si, { done: !x.done })} style={[st.check, x.done && st.checkOn]} hitSlop={6}>
+                  <Pressable onPress={() => toggleDone(ei, si)} style={[st.check, x.done && st.checkOn]} hitSlop={6}>
                     <Icon name="check" size={20} color={x.done ? '#fff' : colors.muted} />
                   </Pressable>
                 </View>
               ))}
-              <Pressable onPress={() => addSet(ei)} style={st.addSet}>
-                <Icon name="add" size={18} color={colors.accent} />
-                <Text style={st.addSetText}>Set ekle</Text>
-              </Pressable>
+              <View style={st.setActions}>
+                <Pressable onPress={() => removeSet(ei)} style={st.setAction} hitSlop={6}>
+                  <Icon name="remove" size={18} color={colors.muted} />
+                  <Text style={[st.setActionText, { color: colors.muted }]}>Set sil</Text>
+                </Pressable>
+                <Pressable onPress={() => addSet(ei)} style={st.setAction} hitSlop={6}>
+                  <Icon name="add" size={18} color={colors.accent} />
+                  <Text style={st.setActionText}>Set ekle</Text>
+                </Pressable>
+              </View>
             </View>
           );
         })}
       </ScrollView>
+
       <View style={st.footer}>
-        <PrimaryButton label="Antrenmanı bitir" icon="sports-score" onPress={confirmFinish} />
+        {rest && (
+          <View style={st.rest}>
+            <View style={[st.restFill, { width: `${(1 - restLeft / rest.total) * 100}%` }]} />
+            <Icon name="hourglass-bottom" size={22} color={colors.accentText} />
+            <View style={{ flex: 1 }}>
+              <Text style={st.restLabel}>{restLeft > 0 ? 'Dinlenme' : 'Sıradaki sete geç!'}</Text>
+              <Text style={st.restTime}>{mmss(restLeft)}</Text>
+            </View>
+            <RestBtn label="−15" onPress={() => shiftRest(-15)} />
+            <RestBtn label="+15" onPress={() => shiftRest(15)} />
+            <RestBtn label="Atla" onPress={() => setRest(null)} />
+          </View>
+        )}
+        <PrimaryButton label={saving ? 'Kaydediliyor…' : 'Antrenmanı bitir'} icon="sports-score" disabled={saving} onPress={confirmFinish} />
       </View>
     </KeyboardAvoidingView>
   );
 }
+
+const RestBtn = ({ label, onPress }) => (
+  <Pressable onPress={onPress} style={st.restBtn} hitSlop={4}><Text style={st.restBtnText}>{label}</Text></Pressable>
+);
 
 const st = StyleSheet.create({
   wrap: { padding: 22, paddingBottom: 30 },
@@ -157,8 +227,9 @@ const st = StyleSheet.create({
     backgroundColor: colors.card, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border,
     padding: 18, marginBottom: 24,
   },
+  exHead: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 14 },
   exName: { color: colors.text, fontSize: 20, fontWeight: '800' },
-  exMeta: { color: colors.muted, fontSize: 14, marginTop: 3, marginBottom: 14 },
+  exMeta: { color: colors.muted, fontSize: 13, marginTop: 3 },
   setRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
   setNo: { width: 34, height: 34, borderRadius: 8, backgroundColor: colors.input, alignItems: 'center', justifyContent: 'center' },
   setNoText: { color: colors.muted, fontWeight: '800' },
@@ -169,7 +240,17 @@ const st = StyleSheet.create({
   unit: { color: colors.muted, fontSize: 12 },
   check: { width: 44, height: 52, borderRadius: radius.sm, backgroundColor: colors.input, alignItems: 'center', justifyContent: 'center' },
   checkOn: { backgroundColor: colors.accent },
-  addSet: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingTop: 6 },
-  addSetText: { color: colors.accent, fontWeight: '800' },
-  footer: { padding: 22, paddingTop: 10 },
+  setActions: { flexDirection: 'row', justifyContent: 'space-between', paddingTop: 4 },
+  setAction: { flexDirection: 'row', alignItems: 'center', gap: 4, padding: 4 },
+  setActionText: { color: colors.accent, fontWeight: '800' },
+  footer: { padding: 22, paddingTop: 10, gap: 10 },
+  rest: {
+    flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#2A1A15', borderRadius: radius.md,
+    borderWidth: 1, borderColor: colors.accentSoft, paddingHorizontal: 14, height: 64, overflow: 'hidden',
+  },
+  restFill: { position: 'absolute', left: 0, top: 0, bottom: 0, backgroundColor: colors.accentSoft },
+  restLabel: { color: colors.muted, fontSize: 12, fontWeight: '700' },
+  restTime: { color: colors.text, fontSize: 22, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  restBtn: { backgroundColor: colors.input, borderRadius: radius.sm, paddingHorizontal: 12, height: 40, justifyContent: 'center' },
+  restBtnText: { color: colors.textSoft, fontWeight: '800' },
 });

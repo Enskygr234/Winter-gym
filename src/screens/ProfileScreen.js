@@ -1,19 +1,34 @@
-import React, { useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { useStore, formatK } from '../data/store';
+import React, { useEffect, useState } from 'react';
+import { Alert, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useStore, formatK, fmtDuration } from '../data/store';
 import { Header, Icon } from '../components/ui';
 import { colors, radius } from '../theme';
 
-export default function ProfileScreen() {
-  const { userName, setUserName, workouts, customPlans, streak, reset } = useStore();
+export default function ProfileScreen({ nav }) {
+  const { userName, setUserName, workouts, plans, prs, streak, reset, exportAll } = useStore();
   const [name, setName] = useState(userName);
+  useEffect(() => setName(userName), [userName]);
 
   const totalVolume = workouts.reduce((s, w) => s + w.volume, 0);
-  const totalMin = Math.round(workouts.reduce((s, w) => s + (w.durationSec || 0), 0) / 60);
-  const recent = [...workouts].reverse().slice(0, 5);
+  const totalSec = workouts.reduce((s, w) => s + (w.durationSec || 0), 0);
+  const mine = plans.filter((p) => !p.preset).length;
+
+  const saveName = () => {
+    const n = name.trim();
+    if (n && n !== userName) setUserName(n);
+  };
+
+  const backup = async () => {
+    try {
+      const data = await exportAll();
+      await Share.share({ title: 'Demir Fitness yedeği', message: JSON.stringify(data) });
+    } catch (e) {
+      Alert.alert('Yedeklenemedi', String(e.message || e));
+    }
+  };
 
   const confirmReset = () =>
-    Alert.alert('Verileri sıfırla', 'Tüm antrenman, plan ve ölçümlerin silinecek. Emin misin?', [
+    Alert.alert('Verileri sıfırla', 'Tüm antrenman, ölçüm ve kendi planların silinecek. Bu geri alınamaz.', [
       { text: 'Vazgeç', style: 'cancel' },
       { text: 'Sıfırla', style: 'destructive', onPress: reset },
     ]);
@@ -26,13 +41,8 @@ export default function ProfileScreen() {
         <View style={st.avatar}><Text style={st.avatarText}>{(name[0] || '?').toLocaleUpperCase('tr-TR')}</Text></View>
         <Text style={st.label}>Adın</Text>
         <TextInput
-          value={name}
-          onChangeText={setName}
-          onEndEditing={() => name.trim() && setUserName(name.trim())}
-          style={st.input}
-          maxLength={20}
-          placeholder="Adın"
-          placeholderTextColor={colors.dim}
+          value={name} onChangeText={setName} onEndEditing={saveName} onSubmitEditing={saveName}
+          style={st.input} maxLength={20} placeholder="Adın" placeholderTextColor={colors.dim} returnKeyType="done"
         />
       </View>
 
@@ -40,23 +50,15 @@ export default function ProfileScreen() {
         <Stat label="Toplam antrenman" value={workouts.length} />
         <Stat label="Güncel seri" value={`${streak} gün`} />
         <Stat label="Toplam hacim" value={`${formatK(totalVolume)} kg`} />
-        <Stat label="Toplam süre" value={`${totalMin} dk`} />
+        <Stat label="Toplam süre" value={fmtDuration(totalSec)} />
       </View>
 
-      <Text style={st.section}>SON ANTRENMANLAR</Text>
-      {recent.length === 0 && <Text style={st.muted}>Henüz antrenman yok. İlk antrenmanını Planlar'dan başlat.</Text>}
-      {recent.map((w) => (
-        <View key={w.id} style={st.row}>
-          <Icon name="check-circle" size={22} color={colors.accent} />
-          <View style={{ flex: 1 }}>
-            <Text style={st.rowTitle}>{w.planName}</Text>
-            <Text style={st.muted}>{new Date(w.date).toLocaleDateString('tr-TR')} · {Math.round(w.durationSec / 60)} dk</Text>
-          </View>
-          <Text style={st.rowVal}>{formatK(w.volume)} kg</Text>
-        </View>
-      ))}
+      <Row icon="history" label="Antrenman geçmişi" meta={`${workouts.length}`} onPress={() => nav.go('history')} />
+      <Row icon="emoji-events" label="Rekorlar" meta={`${Object.keys(prs).length} hareket`} onPress={() => nav.go('records')} />
+      <Row icon="event" label="Kendi planların" meta={`${mine}`} onPress={() => nav.tab('plans')} />
+      <Row icon="ios-share" label="Verileri yedekle (JSON)" onPress={backup} />
 
-      <Text style={[st.muted, { marginTop: 22 }]}>{customPlans.length} kendi planın var. Tüm veriler bu cihazda saklanır.</Text>
+      <Text style={st.note}>Tüm veriler bu telefondaki SQLite veritabanında saklanır. Uygulamayı silersen veriler de silinir, önce yedek al.</Text>
       <Pressable onPress={confirmReset} style={st.reset}>
         <Icon name="delete-outline" size={20} color="#E5534B" />
         <Text style={st.resetText}>Verileri sıfırla</Text>
@@ -70,6 +72,15 @@ const Stat = ({ label, value }) => (
     <Text style={st.statVal}>{value}</Text>
     <Text style={st.muted}>{label}</Text>
   </View>
+);
+
+const Row = ({ icon, label, meta, onPress }) => (
+  <Pressable onPress={onPress} style={st.row}>
+    <Icon name={icon} size={22} color={colors.accent} />
+    <Text style={st.rowTitle}>{label}</Text>
+    {meta ? <Text style={st.muted}>{meta}</Text> : null}
+    <Icon name="chevron-right" size={22} color={colors.dim} />
+  </Pressable>
 );
 
 const st = StyleSheet.create({
@@ -87,18 +98,17 @@ const st = StyleSheet.create({
   },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginVertical: 24 },
   stat: {
-    width: '48%', flexGrow: 1, backgroundColor: colors.card, borderRadius: radius.md, borderWidth: 1,
+    width: '47%', flexGrow: 1, backgroundColor: colors.card, borderRadius: radius.md, borderWidth: 1,
     borderColor: colors.border, padding: 16,
   },
   statVal: { color: colors.text, fontSize: 22, fontWeight: '800', marginBottom: 4 },
-  section: { color: colors.muted, fontWeight: '800', letterSpacing: 1.4, fontSize: 14, marginBottom: 14 },
   muted: { color: colors.muted, fontSize: 14 },
   row: {
     flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: colors.card, borderRadius: radius.md,
-    borderWidth: 1, borderColor: colors.border, padding: 16, marginBottom: 10,
+    borderWidth: 1, borderColor: colors.border, paddingHorizontal: 16, height: 60, marginBottom: 10,
   },
-  rowTitle: { color: colors.text, fontWeight: '800', fontSize: 16, marginBottom: 2 },
-  rowVal: { color: colors.textSoft, fontWeight: '800' },
+  rowTitle: { color: colors.text, fontWeight: '800', fontSize: 16, flex: 1 },
+  note: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 14 },
   reset: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 18,
     borderWidth: 1, borderColor: '#4A2626', borderRadius: radius.md, height: 54,

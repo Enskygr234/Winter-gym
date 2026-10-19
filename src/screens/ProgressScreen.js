@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useStore, formatK } from '../data/store';
 import { Header, Icon, OutlineButton, PrimaryButton } from '../components/ui';
 import { colors, radius } from '../theme';
@@ -13,7 +13,7 @@ const DAY = 24 * 60 * 60 * 1000;
 const TABS = ['Kilo', 'Ölçümler', 'Hacim'];
 
 export default function ProgressScreen() {
-  const { measurements, workouts, addMeasurement } = useStore();
+  const { measurements, workouts, addMeasurement, deleteMeasurement } = useStore();
   const [tab, setTab] = useState('Kilo');
   const [modal, setModal] = useState(false);
 
@@ -34,7 +34,7 @@ export default function ProgressScreen() {
         </View>
 
         {tab === 'Kilo' && <WeightCard data={sorted} />}
-        {tab === 'Ölçümler' && <MeasureCard data={sorted} />}
+        {tab === 'Ölçümler' && <MeasureCard data={sorted} onDelete={deleteMeasurement} />}
         {tab === 'Hacim' && <VolumeCard workouts={workouts} />}
 
         <View style={st.insight}>
@@ -109,7 +109,7 @@ function WeightCard({ data }) {
   );
 }
 
-function MeasureCard({ data }) {
+function MeasureCard({ data, onDelete }) {
   const last = data[data.length - 1];
   const rows = [
     { key: 'weight', label: 'Kilo', unit: 'kg' },
@@ -132,6 +132,25 @@ function MeasureCard({ data }) {
           </View>
         );
       })}
+      {data.length > 0 && <Text style={[st.kicker, { marginTop: 22, marginBottom: 4 }]}>GEÇMİŞ</Text>}
+      {[...data].reverse().slice(0, 12).map((m) => (
+        <Pressable
+          key={m.id}
+          style={st.hRow}
+          onLongPress={() =>
+            Alert.alert('Ölçümü sil', `${shortDate(m.date)} tarihli ölçüm silinsin mi?`, [
+              { text: 'Vazgeç', style: 'cancel' },
+              { text: 'Sil', style: 'destructive', onPress: () => onDelete(m.id) },
+            ])
+          }
+        >
+          <Text style={st.hDate}>{shortDate(m.date)}</Text>
+          <Text style={st.hVals}>
+            {[m.weight && `${m.weight} kg`, m.waist && `bel ${m.waist}`, m.chest && `göğüs ${m.chest}`].filter(Boolean).join(' · ')}
+          </Text>
+        </Pressable>
+      ))}
+      {data.length > 0 && <Text style={[st.empty, { paddingVertical: 8, fontSize: 12 }]}>Silmek için ölçüme basılı tut.</Text>}
     </View>
   );
 }
@@ -225,6 +244,9 @@ const st = StyleSheet.create({
   mRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.border },
   mLabel: { flex: 1, color: colors.textSoft, fontSize: 16, fontWeight: '700' },
   mVal: { color: colors.text, fontSize: 18, fontWeight: '800' },
+  hRow: { flexDirection: 'row', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border, gap: 12 },
+  hDate: { color: colors.muted, fontWeight: '700', width: 56 },
+  hVals: { color: colors.textSoft, fontWeight: '700', flex: 1 },
   mDelta: { width: 54, textAlign: 'right', color: colors.muted, fontWeight: '700' },
   insight: {
     flexDirection: 'row', gap: 16, alignItems: 'center', backgroundColor: '#33201A',
