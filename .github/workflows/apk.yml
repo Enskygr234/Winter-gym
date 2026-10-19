@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   apk:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -23,11 +23,12 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
-      - uses: android-actions/setup-android@v3
       - name: Paketleri kur
         run: |
           npm install
           npx expo install --fix
+      - name: Android SDK kontrol
+        run: echo "::notice::ANDROID_HOME=$ANDROID_HOME" && ls "$ANDROID_HOME/platforms"
       - name: Android projesini oluştur
         run: npx expo prebuild --platform android --no-install
       - name: APK derle
