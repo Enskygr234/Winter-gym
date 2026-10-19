@@ -26,7 +26,10 @@ jobs:
       - name: Paketleri kur
         run: |
           npm install
+          npx expo install expo@latest
           npx expo install --fix
+          npx expo install --check || true
+          echo "::notice::expo $(node -p "require('expo/package.json').version") / react-native $(node -p "require('react-native/package.json').version")"
       - name: Android SDK kontrol
         run: echo "::notice::ANDROID_HOME=$ANDROID_HOME" && ls "$ANDROID_HOME/platforms"
       - name: Android projesini oluştur
