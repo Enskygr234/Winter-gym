@@ -38,7 +38,7 @@ jobs:
         with:
           name: demir-fitness-apk
           path: demir-fitness.apk
-      - name: "son-surum" yayınına yükle
+      - name: Son sürüm yayınına yükle
         uses: softprops/action-gh-release@v2
         with:
           tag_name: son-surum
