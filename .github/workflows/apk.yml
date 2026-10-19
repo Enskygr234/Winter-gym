@@ -1,0 +1,48 @@
+# Expo projesini Android APK'ya çevirir ve "son-surum" yayınına yükler (indirme linki hep aynı kalır)
+name: APK oluştur
+on:
+  push:
+    branches: ["main"]
+    paths-ignore:
+      - "README.md"
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: apk
+  cancel-in-progress: true
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - name: Paketleri kur
+        run: |
+          npm install
+          npx expo install --fix
+      - name: Android projesini oluştur
+        run: npx expo prebuild --platform android --no-install
+      - name: APK derle
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon -PreactNativeArchitectures=arm64-v8a,armeabi-v7a
+      - name: Dosyayı adlandır
+        run: cp android/app/build/outputs/apk/release/app-release.apk demir-fitness.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: demir-fitness-apk
+          path: demir-fitness.apk
+      - name: "son-surum" yayınına yükle
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: son-surum
+          name: Demir Fitness — son sürüm
+          body: "Telefona indirip kur. (Bilinmeyen kaynaklardan yüklemeye izin vermen gerekebilir.)"
+          files: demir-fitness.apk
+          make_latest: true
